@@ -4,6 +4,15 @@ if [ "$EUID" -ne 0 ]
   then echo "Please run as root"
   exit
 fi
+
+# Ask all questions at the beginning
+read -p "Do you want to install Docker (Y/n)? " install_docker_answer
+read -p "Do you want to open any ports (Y/n)? " open_ports_answer
+if [[ ${open_ports_answer:0:1} =~ ^[yY]$ ]]; then
+    read -p "Enter the port numbers you want to open, separated by commas: " ports_to_open
+fi
+read -p "Do you want to reboot the system now (Y/n)? " reboot_answer
+
 # Set restart of services to automatic, when using apt
 # Check if needrestart is installed
 if dpkg -l | grep needrestart > /dev/null; then
@@ -12,16 +21,19 @@ if dpkg -l | grep needrestart > /dev/null; then
 else
     echo "needrestart is not installed."
 fi
+
 # Update the OS
 apt-get update -y
 apt-get upgrade -y
+
 # Install packages
 apt-get install -y ca-certificates curl gnupg net-tools dnsutils
+
 # Set timezone to Europe/Berlin
 timedatectl set-timezone Europe/Berlin
-# Ask the user if they want to install Docker
-read -p "Do you want to install Docker (Y/n)? " answer
-case ${answer:0:1} in
+
+# Install Docker if requested
+case ${install_docker_answer:0:1} in
     y|Y )
         echo "Installing Docker..."
         # Add Docker's official GPG key
@@ -29,8 +41,8 @@ case ${answer:0:1} in
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
         chmod a+r /etc/apt/keyrings/docker.gpg
         echo \
-          "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-          "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+          "deb [arch=\"$(dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+          \"$(. /etc/os-release && echo \"$VERSION_CODENAME\")\" stable" | \
           tee /etc/apt/sources.list.d/docker.list > /dev/null
 
         # Update the apt package index
@@ -42,16 +54,15 @@ case ${answer:0:1} in
     * )
         echo "Docker will not be installed."
     ;;
-    esac
-# Ask the user if they want to open any ports
-read -p "Do you want to open any ports (Y/n)? " answer
-case ${answer:0:1} in
+esac
+
+# Open ports if requested
+case ${open_ports_answer:0:1} in
     y|Y )
         # Install iptables-persistent
         apt-get install -y iptables-persistent
 
-        read -p "Enter the port numbers you want to open, separated by commas: " ports
-        IFS=',' read -ra ADDR <<< "$ports"
+        IFS=',' read -ra ADDR <<< "$ports_to_open"
         for port in "${ADDR[@]}"; do
             iptables -A INPUT -p tcp --dport $port -j ACCEPT
             echo "Port $port is now open."
@@ -64,9 +75,9 @@ case ${answer:0:1} in
         echo "No ports will be opened."
     ;;
 esac
-# Ask the user if they want to reboot
-read -p "Do you want to reboot the system now (Y/n)? " answer
-case ${answer:0:1} in
+
+# Reboot if requested
+case ${reboot_answer:0:1} in
     y|Y )
         echo "The system is rebooting now..."
         reboot
