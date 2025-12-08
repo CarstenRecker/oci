@@ -4,6 +4,15 @@ if [ "$EUID" -ne 0 ]
   then echo "Please run as root"
   exit
 fi
+# Ask the user if they want to install Docker
+read -p "Do you want to install Docker (Y/n)? " docker_answer
+# Ask the user if they want to open any ports
+read -p "Do you want to open any ports (Y/n)? " ports_answer
+if [[ ${ports_answer:0:1} == "y" || ${ports_answer:0:1} == "Y" ]]; then
+    read -p "Enter the port numbers you want to open, separated by commas: " ports
+fi
+# Ask the user if they want to reboot
+read -p "Do you want to reboot the system now (Y/n)? " reboot_answer
 # Set restart of services to automatic, when using apt
 # Check if needrestart is installed
 if dpkg -l | grep needrestart > /dev/null; then
@@ -19,9 +28,8 @@ apt-get upgrade -y
 apt-get install -y ca-certificates curl gnupg net-tools dnsutils
 # Set timezone to Europe/Berlin
 timedatectl set-timezone Europe/Berlin
-# Ask the user if they want to install Docker
-read -p "Do you want to install Docker (Y/n)? " answer
-case ${answer:0:1} in
+# Install Docker if requested
+case ${docker_answer:0:1} in
     y|Y )
         echo "Installing Docker..."
         # Add Docker's official GPG key
@@ -42,15 +50,13 @@ case ${answer:0:1} in
     * )
         echo "Docker will not be installed."
     ;;
-    esac
-# Ask the user if they want to open any ports
-read -p "Do you want to open any ports (Y/n)? " answer
-case ${answer:0:1} in
+esac
+# Open ports if requested
+case ${ports_answer:0:1} in
     y|Y )
         # Install iptables-persistent
         apt-get install -y iptables-persistent
 
-        read -p "Enter the port numbers you want to open, separated by commas: " ports
         IFS=',' read -ra ADDR <<< "$ports"
         for port in "${ADDR[@]}"; do
             iptables -A INPUT -p tcp --dport $port -j ACCEPT
@@ -64,9 +70,8 @@ case ${answer:0:1} in
         echo "No ports will be opened."
     ;;
 esac
-# Ask the user if they want to reboot
-read -p "Do you want to reboot the system now (Y/n)? " answer
-case ${answer:0:1} in
+# Reboot if requested
+case ${reboot_answer:0:1} in
     y|Y )
         echo "The system is rebooting now..."
         reboot
